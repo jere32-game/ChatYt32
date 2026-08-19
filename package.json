@@ -1,5 +1,7 @@
 {
+  "name": "chatyt32-api",
+  "version": "1.0.0",
   "dependencies": {
-    "express": "^5.2.1"
+    "youtubei.js": "latest"
   }
 }
