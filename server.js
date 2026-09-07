@@ -103,9 +103,26 @@ function createSession(ws) {
     if (stopped) return;
 
     try {
+      console.log(`[DEBUG] Obteniendo cliente de YouTube para videoId="${currentVideoId}"...`);
       const client = yt || (await getYouTubeClient());
+      console.log(`[DEBUG] Cliente listo. Llamando a client.getInfo("${currentVideoId}")...`);
       const info = await client.getInfo(currentVideoId);
+
+      const isLiveNow = info?.basic_info?.is_live;
+      console.log(`[DEBUG] getInfo respondió. Título: "${info?.basic_info?.title || 'desconocido'}" | is_live: ${isLiveNow}`);
+
+      if (isLiveNow === false) {
+        // Hipótesis a confirmar: getLiveChat() no lanza error con un video
+        // que no está en vivo, solo devuelve un objeto que nunca emitirá
+        // 'chat-update'. Cortamos aquí para dar un mensaje claro en vez de
+        // silencio total.
+        console.warn(`[DEBUG] El video "${currentVideoId}" NO está en vivo ahora mismo (is_live=false). No se puede escuchar su chat.`);
+        safeSend(ws, { type: 'STATUS', data: { state: 'NOT_LIVE', videoId: currentVideoId } });
+        return;
+      }
+
       livechat = info.getLiveChat();
+      console.log('[DEBUG] getLiveChat() devolvió un objeto. Registrando listeners y arrancando...');
 
       livechat.on('chat-update', (action) => handleChatUpdate(action));
 
@@ -145,6 +162,7 @@ function createSession(ws) {
 
   function handleChatUpdate(action) {
     const item = action.item;
+    console.log(`[DEBUG] chat-update recibido. item?.type = ${item?.type || '(sin item)'}`);
     if (!item) return;
 
     switch (item.type) {
@@ -233,6 +251,8 @@ function createSession(ws) {
 
   return {
     handleMessage(raw) {
+      console.log('[DEBUG] Mensaje crudo recibido:', raw.toString());
+
       let payload;
       try {
         payload = JSON.parse(raw);
@@ -241,13 +261,18 @@ function createSession(ws) {
         return;
       }
 
+      console.log('[DEBUG] Payload parseado:', JSON.stringify(payload));
+
       if (payload.action === 'START' && payload.videoId) {
+        console.log(`[DEBUG] Acción START reconocida, videoId="${payload.videoId}". Llamando a startLiveChat...`);
         startLiveChat(payload.videoId).catch((err) => {
           console.error('Error inesperado iniciando el chat:', err.message);
         });
       } else if (payload.action === 'STOP') {
         stopLiveChat();
         safeSend(ws, { type: 'STATUS', data: { state: 'STOPPED', videoId: currentVideoId } });
+      } else {
+        console.warn('[DEBUG] Mensaje no reconocido. payload.action =', payload.action, '| payload.videoId =', payload.videoId);
       }
     },
     handleClose() {
