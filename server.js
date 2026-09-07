@@ -165,17 +165,27 @@ function createSession(ws) {
     console.log(`[DEBUG] chat-update recibido. item?.type = ${item?.type || '(sin item)'}`);
     if (!item) return;
 
-    switch (item.type) {
-      case 'LiveChatTextMessage':
-        return handleTextMessage(item);
-      case 'LiveChatPaidMessage':
-        return handlePaidMessage(item);
-      case 'LiveChatPaidSticker':
-        return handlePaidSticker(item);
-      case 'LiveChatMembershipItem':
-        return handleMembership(item);
-      default:
-        return; // otros tipos internos de YouTube que no exponemos por ahora
+    try {
+      switch (item.type) {
+        case 'LiveChatTextMessage':
+          return handleTextMessage(item);
+        case 'LiveChatPaidMessage':
+          return handlePaidMessage(item);
+        case 'LiveChatPaidSticker':
+          return handlePaidSticker(item);
+        case 'LiveChatMembershipItem':
+          return handleMembership(item);
+        default:
+          return; // otros tipos internos de YouTube que no exponemos por ahora
+      }
+    } catch (err) {
+      // Un item con forma inesperada puede hacer que la librería lance un
+      // error al leer alguna de sus propiedades (p. ej. un badge de autor
+      // corrupto). Sin este try/catch, ese error escapa del event emitter
+      // y tumba TODO el proceso de Node — desconectando a todos los
+      // usuarios conectados al servidor, no solo a este. Lo registramos y
+      // seguimos vivos, simplemente ignorando ese mensaje puntual.
+      console.error(`[ERROR] Falló al procesar un item de tipo "${item.type}":`, err.message);
     }
   }
 
@@ -302,4 +312,19 @@ wss.on('connection', (ws) => {
 // (y con él, a todos los usuarios conectados al mismo tiempo).
 process.on('unhandledRejection', (reason) => {
   console.error('Promesa rechazada sin manejar:', reason);
+});
+
+// Red de seguridad final: si algún error síncrono se escapa de todos los
+// try/catch (por ejemplo, dentro de un callback de un event emitter como
+// livechat.on(...)), Node por defecto MATA el proceso completo al toparse
+// con un uncaughtException. Eso es lo que estaba pasando: un solo mensaje
+// de chat con forma inesperada tumbaba el servidor entero, desconectando a
+// TODOS los usuarios de golpe, sin ningún log visible.
+//
+// Esto no reemplaza arreglar la causa raíz del error — solo evita que un
+// error puntual se lleve a todo el servidor por delante mientras se
+// diagnostica. Si ves este mensaje en los logs seguido siempre del mismo
+// error, es la pista de dónde falta un try/catch específico.
+process.on('uncaughtException', (err) => {
+  console.error('[CRÍTICO] Excepción no capturada — el servidor SIGUE VIVO gracias a este manejador:', err);
 });
