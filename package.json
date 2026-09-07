@@ -1,7 +1,21 @@
 {
-  "name": "chatyt32-api",
-  "version": "1.0.0",
+  "name": "youtubelive_localfiles",
+  "version": "2.0.0",
+  "description": "Servidor multi-usuario que retransmite el chat en vivo de YouTube (mensajes, Super Chats, Super Stickers y membresías) a TurboWarp por WebSocket.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "youtubei.js": "latest"
+    "ws": "^8.21.3",
+    "youtubei.js": "^18.0.0"
   }
 }
